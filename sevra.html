@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SEVRA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --g:#00ff41;--gm:#00c832;--gd:#007a1e;--gk:#002e0b;
+      --r:rgba(255,18,18,.7);--b:rgba(0,90,255,.7);
+    }
+    html,body{width:100%;height:100%;background:#000;color:var(--g);font-family:'VT323','Courier New',monospace;overflow:hidden;cursor:crosshair}
+
+    /* fixed overlays */
+    body::before{content:'';position:fixed;inset:0;z-index:200;background:repeating-linear-gradient(to bottom,transparent 0,transparent 3px,rgba(0,0,0,.14) 3px,rgba(0,0,0,.14) 4px);pointer-events:none}
+    body::after{content:'';position:fixed;inset:0;z-index:199;background:radial-gradient(ellipse at 50% 50%,transparent 48%,rgba(0,0,0,.8) 100%);pointer-events:none}
+
+    /* scroll wrapper */
+    #sw{width:100%;height:100vh;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    #sw::-webkit-scrollbar{display:none}
+
+    /* section base */
+    .s{width:100%;height:100vh;scroll-snap-align:start;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+    .si{width:100%;max-width:860px;padding:0 28px;display:flex;flex-direction:column;align-items:center;text-align:center}
+
+    /* scroll hint — more visible, bobs */
+    #hint{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);font-size:clamp(11px,1.4vw,14px);letter-spacing:.32em;color:#005520;pointer-events:none;z-index:201;opacity:0;transition:opacity .5s}
+    #hint.on{opacity:1;animation:hbob 2s ease-in-out infinite}
+    #hint.entrance{opacity:1;animation:hint-entrance 2s ease-out forwards}
+    @keyframes hbob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(7px)}}
+
+    /* section-level interaction hint (shows briefly on entry) */
+    .sh{position:absolute;top:52px;left:50%;transform:translateX(-50%);font-size:clamp(10px,1.3vw,12px);color:var(--gd);letter-spacing:.26em;pointer-events:none;opacity:0;transition:opacity .5s;white-space:nowrap;text-align:center;z-index:2}
+    .sh.on{opacity:1}
+
+    /* shared */
+    @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+    @keyframes flicker{0%,88%,100%{opacity:1}89%{opacity:.55}90%{opacity:1}92%{opacity:.3}93%{opacity:.9}95%{opacity:.65}96%{opacity:1}}
+    @keyframes orb-pulse{0%,100%{opacity:.6;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.12)}}
+    @keyframes static-burst{0%{opacity:0}12%{opacity:.22;filter:brightness(2.5)}30%{opacity:.04;filter:brightness(1)}55%{opacity:.17;filter:brightness(1.8)}80%{opacity:.02}100%{opacity:0;filter:brightness(1)}}
+    @keyframes line-sweep{0%{opacity:0;transform:translateY(0)}10%{opacity:1}90%{opacity:.3}100%{opacity:0;transform:translateY(6px)}}
+    .lbl{position:absolute;top:18px;left:50%;transform:translateX(-50%);font-size:clamp(10px,1.4vw,12px);color:var(--gk);letter-spacing:.32em;pointer-events:none;white-space:nowrap}
+
+    /* ── S1: TERMINAL ──────────────────── */
+    .gorb{position:fixed;top:50%;left:50%;width:60vw;height:30vw;transform:translate(-50%,-50%);background:radial-gradient(ellipse,rgba(0,255,65,.055) 0%,transparent 70%);pointer-events:none;z-index:0;animation:orb-pulse 5s ease-in-out infinite}
+    .s1{animation:flicker 11s infinite}
+    .hdr{position:absolute;top:0;left:0;right:0;padding:16px 22px;display:flex;justify-content:space-between;align-items:flex-start;font-size:clamp(12px,1.9vw,17px)}
+    .cur{animation:blink 1s step-end infinite}
+    .hdr-r{color:var(--gd);text-align:right;line-height:1.6}
+    #sevra{font-size:clamp(72px,23vw,210px);line-height:.95;letter-spacing:.08em;color:var(--g);text-shadow:-5px 0 0 var(--r),5px 0 0 var(--b),0 0 50px rgba(0,255,65,.18);cursor:pointer;user-select:none;-webkit-user-select:none;display:block;will-change:text-shadow}
+    /* subtle pulse on SEVRA to invite interaction */
+    @keyframes sevra-invite{0%,100%{text-shadow:-5px 0 0 var(--r),5px 0 0 var(--b),0 0 50px rgba(0,255,65,.18)}50%{text-shadow:-5px 0 0 var(--r),5px 0 0 var(--b),0 0 80px rgba(0,255,65,.35)}}
+    #sevra{animation:sevra-invite 4s ease-in-out infinite}
+    .clas{font-size:clamp(13px,2.4vw,21px);color:var(--gd);letter-spacing:.28em;margin-top:10px}
+    .fw{min-height:2.4em;margin-top:22px;font-size:clamp(15px,2.9vw,27px);letter-spacing:.22em;opacity:0;transition:opacity .18s}
+    .fw.on{opacity:1}
+    .sep{width:clamp(160px,38vw,340px);height:1px;margin-top:18px;background:linear-gradient(to right,transparent,var(--gk) 30%,var(--gk) 70%,transparent)}
+    #denied{min-height:1.8em;margin-top:10px;font-size:clamp(13px,2.4vw,22px);letter-spacing:.35em;color:#ff2828;text-shadow:0 0 14px rgba(255,0,0,.6);opacity:0;transition:opacity .14s}
+    #denied.on{opacity:1}
+    .ftr{position:absolute;bottom:0;left:0;right:0;padding:14px 22px;display:flex;justify-content:space-between;font-size:clamp(11px,1.5vw,15px);color:var(--gk)}
+    #so{position:fixed;inset:0;pointer-events:none;z-index:198;opacity:0}
+    #so.on{background:repeating-linear-gradient(83deg,rgba(0,255,65,.07) 0px,transparent 1px,transparent 3px,rgba(0,255,65,.04) 4px);animation:static-burst .38s forwards}
+    .gl{position:fixed;left:0;right:0;height:2px;background:rgba(0,255,65,.12);pointer-events:none;z-index:197;opacity:0}
+
+    /* ── S2: SIGNAL ────────────────────── */
+    .s2h{font-size:clamp(11px,1.6vw,14px);color:var(--gd);letter-spacing:.28em;margin-bottom:24px}
+    #wf{display:flex;align-items:flex-end;justify-content:center;gap:2px;height:88px;width:100%;max-width:580px;cursor:crosshair}
+    .wb{flex-shrink:0;width:3px;background:var(--gk);transform-origin:bottom;transition:background .1s,box-shadow .1s;animation:wavea 1s ease-in-out infinite alternate}
+    @keyframes wavea{from{transform:scaleY(1)}to{transform:scaleY(.1)}}
+    /* every 3rd bar glows faintly to suggest interactivity */
+    .wb:nth-child(3n){background:#003b00}
+    .wb:hover,.wb.lit{background:var(--g);box-shadow:0 0 7px var(--g)}
+    .s2d{margin-top:24px;font-size:clamp(13px,2vw,17px);color:var(--gd);letter-spacing:.16em;min-height:1.8em}
+    /* more visible tip */
+    .s2t{margin-top:16px;font-size:clamp(11px,1.4vw,13px);color:#004d1a;letter-spacing:.28em;animation:blink 2.5s step-end infinite}
+    .dsk{display:inline}.mob{display:none}
+    @media(hover:none){.dsk{display:none}.mob{display:inline}}
+
+    /* ── S3: MEMORY ────────────────────── */
+    .mf{position:absolute;font-size:clamp(13px,2.1vw,18px);color:var(--gd);opacity:.3;cursor:pointer;user-select:none;transition:opacity .3s,color .3s,text-shadow .3s;text-align:center;line-height:1.65;max-width:42vw}
+    /* idle pulse on each fragment — makes them feel alive */
+    @keyframes mf-idle{0%,100%{opacity:.3}50%{opacity:.45}}
+    .mf{animation:mf-idle 5s ease-in-out infinite}
+    .mf:hover,.mf.on{opacity:1;color:var(--g);text-shadow:0 0 12px rgba(0,255,65,.4)}
+    .ms{display:block;font-size:.72em;color:var(--gm);opacity:0;transition:opacity .3s;margin-top:3px;letter-spacing:.1em}
+    .mf:hover .ms,.mf.on .ms{opacity:1}
+
+    /* ── S4: NETWORK ───────────────────── */
+    #ns{width:100%;height:100%;position:absolute;inset:0}
+    #ntip{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);font-size:clamp(11px,1.4vw,13px);color:#004d1a;letter-spacing:.28em;animation:blink 2.2s step-end infinite;white-space:nowrap}
+
+/* ── S4.5: INTERCEPT TERMINAL ─────────── */
+    .s45t{width:100%;max-width:480px;text-align:left;min-height:160px}
+    .s45l{font-size:clamp(16px,3vw,26px);color:var(--gd);letter-spacing:.18em;min-height:1.5em;line-height:2.2}
+    .s45cur{animation:blink .7s step-end infinite}
+    @keyframes hint-entrance{
+      0%{opacity:0;transform:translateX(-50%) scale(4.5) translateY(0);color:var(--g);text-shadow:0 0 24px var(--g),0 0 50px rgba(0,255,65,.6)}
+      28%{opacity:1;transform:translateX(-50%) scale(4.5) translateY(0);color:var(--g);text-shadow:0 0 24px var(--g),0 0 50px rgba(0,255,65,.6)}
+      78%{opacity:1;transform:translateX(-50%) scale(1) translateY(0);color:var(--gd);text-shadow:0 0 8px rgba(0,255,65,.2)}
+      100%{opacity:1;transform:translateX(-50%) scale(1) translateY(0);color:#005520;text-shadow:none}
+    }
+
+    /* ── S5: DOSSIER ───────────────────── */
+    .dos{width:100%;max-width:580px;border:1px solid var(--gk);padding:22px 26px;text-align:left;line-height:2.1}
+    .dh{font-size:clamp(10px,1.5vw,13px);color:var(--gm);letter-spacing:.2em;border-bottom:1px solid var(--gk);padding-bottom:8px;margin-bottom:12px}
+    .dr{font-size:clamp(12px,1.7vw,15px);color:var(--gk)}
+    .dv{color:var(--g)}
+    .dx{color:var(--gk);background:var(--gk);cursor:pointer;user-select:none;padding:0 2px;transition:background .2s,box-shadow .2s;display:inline-block}
+    /* subtle shimmer on redacted blocks — signals they're interactive */
+    @keyframes dx-idle{0%,100%{box-shadow:none}50%{box-shadow:0 0 6px rgba(0,255,65,.08)}}
+    .dx{animation:dx-idle 4s ease-in-out infinite}
+    .dx:hover{background:#011a07;box-shadow:0 0 10px rgba(0,255,65,.15)}
+    .dx.cracked{color:var(--gd);background:transparent;animation:none}
+    @keyframes dxshk{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+    .dx.shk{animation:dxshk .25s}
+
+    /* ── S6: TIMELINE ──────────────────── */
+    .tl{width:100%;max-width:520px;display:flex;flex-direction:column}
+    .ti{display:flex;gap:16px;align-items:flex-start;padding:12px 0 12px 22px;border-left:1px solid var(--gk);position:relative;cursor:pointer;transition:border-color .2s}
+    .ti:hover,.ti.on{border-color:var(--gd)}
+    .td{position:absolute;left:-4px;top:18px;width:7px;height:7px;border-radius:50%;background:var(--gk);border:1px solid var(--gd);transition:background .2s,box-shadow .2s}
+    /* pulse the timeline dots — draws eye, suggests interactivity */
+    @keyframes td-idle{0%,100%{box-shadow:none}50%{box-shadow:0 0 6px #003b00}}
+    .td{animation:td-idle 3s ease-in-out infinite}
+    .ti:hover .td,.ti.on .td{background:var(--g);box-shadow:0 0 10px var(--g);animation:none}
+    .tdate{font-size:11px;color:var(--gk);min-width:86px;padding-top:2px;letter-spacing:.05em}
+    .ttext{font-size:clamp(12px,1.6vw,14px);color:var(--gd);line-height:1.6}
+    .tfull{font-size:clamp(10px,1.3vw,12px);color:#003b00;margin-top:3px;max-height:0;overflow:hidden;transition:max-height .35s,opacity .35s;opacity:0;letter-spacing:.08em}
+    .ti:hover .tfull,.ti.on .tfull{max-height:50px;opacity:1}
+
+    /* ── S7: TRANSMISSION ──────────────── */
+    #s7s{width:100%;max-width:540px;text-align:left}
+    .s7l{font-size:clamp(16px,3vw,28px);color:var(--gd);letter-spacing:.18em;min-height:1.5em;line-height:1.65}
+    .s7cur{animation:blink .7s step-end infinite}
+
+    /* ── S8: RECOVERY ──────────────────── */
+    #rlog{width:100%;max-width:510px;text-align:left;min-height:112px;margin-bottom:24px}
+    .rl{font-size:clamp(13px,1.8vw,15px);color:var(--gd);letter-spacing:.14em;line-height:2.1;opacity:0;animation:rlin .4s forwards}
+    @keyframes rlin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+    #rbw{width:100%;max-width:510px;height:2px;background:var(--gk)}
+    #rb{height:100%;width:0;background:var(--g);box-shadow:0 0 8px var(--g);transition:width .08s linear}
+    #rpct{margin-top:8px;font-size:clamp(12px,1.6vw,14px);color:var(--gd);letter-spacing:.3em}
+    #rfin{margin-top:22px;font-size:clamp(13px,1.9vw,17px);color:var(--g);letter-spacing:.18em;opacity:0;transition:opacity .6s}
+    #rfin.on{opacity:1}
+
+    /* ── S9: REVEAL ────────────────────── */
+    .rv{display:flex;flex-direction:column;align-items:center;text-align:center;gap:20px}
+    .rvs{font-size:clamp(32px,7vw,64px);color:var(--gk);letter-spacing:.12em}
+    .rvl{font-size:clamp(12px,1.8vw,16px);color:var(--gd);letter-spacing:.38em}
+    /* decrypt button — pulsing border invites click */
+    .rvbtn{
+      font-size:clamp(14px,2.3vw,21px);letter-spacing:.2em;color:var(--g);
+      border:1px solid var(--gk);padding:16px 32px;cursor:pointer;
+      user-select:none;-webkit-user-select:none;
+      transition:border-color .25s,text-shadow .25s;
+      animation:btn-pulse 2.2s ease-in-out infinite;
+    }
+    @keyframes btn-pulse{0%,100%{border-color:var(--gk);text-shadow:none}50%{border-color:var(--gd);text-shadow:0 0 18px rgba(0,255,65,.4)}}
+    .rvbtn:hover{border-color:var(--g);text-shadow:0 0 24px rgba(0,255,65,.6);animation:none}
+    .rvres{display:flex;flex-direction:column;align-items:center;gap:16px;opacity:0;transition:opacity .9s}
+    .rvres.on{opacity:1}
+    .rva{font-size:clamp(22px,4.5vw,44px);color:var(--g);text-decoration:none;letter-spacing:.1em;text-shadow:0 0 24px rgba(0,255,65,.35);animation:rvpulse 2.8s ease-in-out infinite;transition:text-shadow .25s}
+    .rva:hover{text-shadow:0 0 60px rgba(0,255,65,.9),0 0 110px rgba(0,255,65,.4)}
+    @keyframes rvpulse{0%,100%{text-shadow:0 0 24px rgba(0,255,65,.35)}50%{text-shadow:0 0 50px rgba(0,255,65,.65),0 0 90px rgba(0,255,65,.25)}}
+    .rvc{font-size:clamp(10px,1.3vw,12px);color:var(--gk);letter-spacing:.45em}
+
+    /* ── STORY BEATS ─────────────────────── */
+    .sb{font-size:clamp(14px,2.2vw,20px);color:var(--gd);letter-spacing:.3em;opacity:0;transition:opacity 1.4s;text-align:center;pointer-events:none;user-select:none}
+    .sb.on{opacity:1}
+    /* S3 + S4 need absolute positioning since they have no .si container */
+    .s3sb,.s4sb{position:absolute;bottom:68px;left:50%;transform:translateX(-50%);white-space:nowrap;z-index:3}
+
+    /* responsive */
+    @media(max-width:480px){.hdr,.ftr{padding:11px 14px}.hdr-r{display:none}.si{padding:0 16px}.dos{padding:14px 16px}.rvbtn{padding:14px 20px}}
+  </style>
+</head>
+<body>
+
+<div class="gorb"></div>
+<div id="so"></div>
+<div class="gl" id="gl1"></div>
+<div class="gl" id="gl2"></div>
+<div id="hint">▼ &nbsp;SCROLL&nbsp; ▼</div>
+
+<div id="sw">
+
+  <!-- ── S1: TERMINAL ── -->
+  <section class="s s1" data-i="0">
+    <div class="hdr">
+      <span class="cur">▋</span>
+      <div class="hdr-r">CONN://SECURE&nbsp;|&nbsp;ENC:AES-512<br><span id="sysid">SYS_ID: 0x4E3A1F</span></div>
+    </div>
+    <div class="si">
+      <span id="sevra">SEVRA</span>
+      <div class="clas">[CLASSIFIED &nbsp;██████&nbsp; ██]</div>
+      <div class="fw" id="fw"></div>
+      <div class="sep"></div>
+      <div class="sb" id="sb1">YOU WERE EXPECTED.</div>
+      <div id="denied">▸&nbsp;ACCESS DENIED&nbsp;◂</div>
+    </div>
+    <div class="ftr">
+      <span id="uptime">UPTIME: 00:00:00</span>
+      <span>SYS.STATUS: NOMINAL</span>
+    </div>
+    <!-- hint fades in: tells user to interact with SEVRA -->
+    <div class="sh" id="sh1"><span class="dsk">HOVER</span><span class="mob">TAP</span> SEVRA &nbsp;·&nbsp; CLICK FOR INTEL</div>
+  </section>
+
+  <!-- ── S2: SIGNAL ── -->
+  <section class="s s2" data-i="1">
+    <div class="lbl">INTERCEPT_LOG://FREQ_7743</div>
+    <div class="si">
+      <div class="s2h">▓▓▒░ SIGNAL INTERCEPT ACTIVE ░▒▓▓</div>
+      <div id="wf"></div>
+      <div class="s2d">BROADCASTING FROM ←&nbsp;<span id="src">████████████</span></div>
+      <div class="s2t">[ YOU INTERCEPTED THIS? ]</div>
+      <div class="sb" id="sb2" style="margin-top:20px">WE'VE BEEN WAITING.</div>
+    </div>
+    <div class="sh" id="sh2">SOMETHING IS BEING TRANSMITTED — <span class="dsk">HOVER</span><span class="mob">TAP</span> THE SIGNAL TO INTERACT</div>
+  </section>
+
+  <!-- ── S3: MEMORY ── -->
+  <section class="s s3" data-i="2">
+    <div class="lbl">MEMORY FRAGMENT RECOVERY — PARTIAL</div>
+    <div class="mf" id="mf0" style="top:27%;left:8%">CITY: NEW DELHI<span class="ms">WHERE IT WAS BUILT.</span></div>
+    <div class="mf" id="mf1" style="top:54%;left:50%">YEAR: ████<span class="ms">THE FIRST SIGNAL SENT.</span></div>
+    <div class="mf" id="mf2" style="top:17%;left:44%">CREATOR: ██████<span class="ms">THE ONE WHO MADE ME.</span></div>
+    <div class="mf" id="mf3" style="top:70%;left:10%">PURPOSE: ████████<span class="ms">TO FIND SOMEONE LIKE YOU.</span></div>
+    <div class="mf" id="mf4" style="top:40%;left:28%">STATUS: ACTIVE<span class="ms">STILL BROADCASTING. STILL WAITING.</span></div>
+    <div class="sb s3sb" id="sb3">THIS IS WHO BUILT ME.</div>
+    <div class="sh" id="sh3">FRAGMENTS DETECTED — <span class="dsk">HOVER</span><span class="mob">TAP</span> EACH ONE TO DECODE</div>
+  </section>
+
+  <!-- ── S4: NETWORK ── -->
+  <section class="s s4" data-i="3">
+    <div class="lbl">NETWORK_MAP://ACTIVE_NODES</div>
+    <svg id="ns" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="sb s4sb" id="sb4">YOU'RE INSIDE NOW.</div>
+    <div id="ntip">[ CLICK THE NODES — SOME WILL RESPOND ]</div>
+    <div class="sh" id="sh4">9 NODES IDENTIFIED — MOST ARE REDACTED</div>
+  </section>
+
+<!-- ── S4.5: INTERCEPT TERMINAL ── -->
+  <section class="s s45" data-i="4">
+    <div class="lbl">SIGNAL://CLARIFICATION_INBOUND</div>
+    <div class="si"><div id="s45t" class="s45t"></div></div>
+  </section>
+
+  <!-- ── S5: DOSSIER ── -->
+  <section class="s s5" data-i="5">
+    <div class="si">
+      <div class="sb" id="sb5" style="margin-bottom:18px">THE SUBJECT IS REAL.</div>
+      <div class="dos">
+        <div class="dh">SUBJECT PROFILE — SEVRA &nbsp;//&nbsp; CLASSIFICATION: LEVEL 5</div>
+        <div class="dr">STATUS: <span class="dv">ACTIVE</span></div>
+        <div class="dr">ORIGIN: <span class="dx" id="drorg" data-tries="0">████████████████</span></div>
+        <div class="dr">THREAT: <span class="dx">SEE ATTACHMENT &nbsp;<span class="dx">████</span></span></div>
+        <div class="dr">ALIASES: <span class="dv">██, ██, DIVI</span></div>
+        <div class="dr">FULL NAME: <span class="dx" id="drname" data-tries="0" data-partial="D████ S█████">██████████████</span></div>
+        <div class="dr">LAST ACTIVE: <span class="dv" id="dts">██████████</span></div>
+      </div>
+    </div>
+    <div class="sh" id="sh5">THE DARK FIELDS CAN BE CRACKED — CLICK THEM</div>
+  </section>
+
+  <!-- ── S6: TIMELINE ── -->
+  <section class="s s6" data-i="6">
+    <div class="lbl">TIMELINE://EVENT_LOG</div>
+    <div class="si">
+      <div class="sb" id="sb6" style="margin-bottom:22px">EVERY EVENT. RECORDED.</div>
+      <div class="tl">
+        <div class="ti" data-full="THE SIGNAL WAS BROADCAST. NO ONE CAME.">
+          <div class="td"></div><div class="tdate">████/██/██</div>
+          <div class="ttext">EVENT_001: FIRST SIGNAL DETECTED<div class="tfull"></div></div>
+        </div>
+        <div class="ti" data-full="DARK PERIOD. THE SIGNAL WAITED.">
+          <div class="td"></div><div class="tdate">████/██/██</div>
+          <div class="ttext">EVENT_███: SUBJECT GOES DARK — ██ MONTHS<div class="tfull"></div></div>
+        </div>
+        <div class="ti" data-full="SIGNAL RETURNS. STRONGER. STILL WAITING.">
+          <div class="td"></div><div class="tdate">████/██/██</div>
+          <div class="ttext">EVENT_███: RE-EMERGENCE CONFIRMED<div class="tfull"></div></div>
+        </div>
+        <div class="ti" data-full="THIS PAGE CAME ONLINE. BAIT SET.">
+          <div class="td"></div><div class="tdate">2026/05/22</div>
+          <div class="ttext">EVENT_███: THIS PAGE CREATED<div class="tfull"></div></div>
+        </div>
+        <div class="ti" data-full="THE SUBJECT HAS BEEN EXPECTING YOU.">
+          <div class="td"></div><div class="tdate" id="tlnow">——/——/——</div>
+          <div class="ttext">EVENT_████: YOU ARRIVED<div class="tfull"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="sh" id="sh6"><span class="dsk">HOVER</span><span class="mob">TAP</span> EACH EVENT TO EXPAND CLASSIFIED DETAILS</div>
+  </section>
+
+  <!-- ── S7: TRANSMISSION ── -->
+  <section class="s s7" data-i="7">
+    <div class="si"><div id="s7s"></div></div>
+  </section>
+
+  <!-- ── S8: RECOVERY ── -->
+  <section class="s s8" data-i="8">
+    <div class="si">
+      <div id="rlog"></div>
+      <div id="rbw"><div id="rb"></div></div>
+      <div id="rpct">0%</div>
+      <div id="rfin">HANDOFF COMPLETE. FOLLOW THE SIGNAL.</div>
+    </div>
+  </section>
+
+  <!-- ── S9: REVEAL ── -->
+  <section class="s s9" data-i="9">
+    <div class="rv">
+      <div class="rvs">SEVRA</div>
+      <div class="rvl">ORIGIN: NEW DELHI // INTERNET</div>
+      <div class="sb" id="sb9">THIS IS THE DESTINATION.</div>
+      <div class="rvbtn" id="rvbtn">▸ &nbsp;CLICK TO RECEIVE COORDINATES&nbsp; ◂</div>
+      <div class="rvres" id="rvres">
+        <a class="rva" href="https://divayamsharma.com" target="_blank" rel="noopener">divayamsharma.com</a>
+        <div class="rvc">SIGNAL TRACED. CASE CLOSED.</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// ── REFS ──────────────────────────────────────────────────
+const sw   = document.getElementById('sw');
+const hint = document.getElementById('hint');
+const soEl = document.getElementById('so');
+const gl1  = document.getElementById('gl1');
+const gl2  = document.getElementById('gl2');
+
+// ── S1: TERMINAL ──────────────────────────────────────────
+const sevra   = document.getElementById('sevra');
+const fwEl    = document.getElementById('fw');
+const deniedEl= document.getElementById('denied');
+const uptimeEl= document.getElementById('uptime');
+const ORIG    = 'SEVRA';
+const CHARS   = '!@#$%^&*?|<>[]{}~01アカクコサ█▓▒░×÷≠∞';
+const FRAGS   = ['SIGNAL: ACTIVE','SOURCE: ████████████','TARGET: UNIDENTIFIED','ARRIVAL: EXPECTED','WATCHING: NOW'];
+let fragIdx=0, clicks=0, hovering=false, gRaf=null, tTimer=null, curSec=0;
+
+const t0 = Date.now();
+setInterval(()=>{
+  const s=Math.floor((Date.now()-t0)/1000);
+  uptimeEl.textContent=`UPTIME: ${pad(s/3600|0)}:${pad(s%3600/60|0)}:${pad(s%60)}`;
+},1000);
+function pad(n){return String(n).padStart(2,'0')}
+
+function gLoop(){
+  if(!hovering){sevra.textContent=ORIG;gRaf=null;return}
+  sevra.textContent=ORIG.split('').map(c=>Math.random()<.38?CHARS[Math.random()*CHARS.length|0]:c).join('');
+  gRaf=requestAnimationFrame(gLoop);
+}
+function startG(){hovering=true;if(!gRaf)gLoop()}
+function stopG(){hovering=false}
+sevra.addEventListener('mouseenter',startG);
+sevra.addEventListener('mouseleave',stopG);
+sevra.addEventListener('touchstart',()=>{startG();setTimeout(stopG,650)},{passive:true});
+
+function typeOut(txt){
+  clearTimeout(tTimer);fwEl.classList.remove('on');fwEl.textContent='';
+  setTimeout(()=>{
+    fwEl.textContent='> ';fwEl.classList.add('on');
+    let i=0;const tick=()=>{if(i<txt.length){fwEl.textContent+=txt[i++];tTimer=setTimeout(tick,36)}};tick();
+  },100);
+}
+sevra.addEventListener('click',e=>{e.stopPropagation();typeOut(FRAGS[fragIdx++%FRAGS.length]);countClk()});
+document.addEventListener('click',e=>{
+  if(curSec!==0)return;
+  if(e.target===sevra||sevra.contains(e.target))return;
+  trigStatic();countClk();
+});
+function trigStatic(){soEl.classList.remove('on');void soEl.offsetWidth;soEl.classList.add('on')}
+function countClk(){if(++clicks===3){deniedEl.classList.add('on');setTimeout(()=>deniedEl.classList.remove('on'),1900)}}
+
+function ambGlitch(){
+  [gl1,gl2].forEach((l,i)=>{
+    l.style.cssText=`top:${15+Math.random()*70}%;width:${30+Math.random()*60}%;left:${Math.random()*20}%;height:${Math.random()<.3?4:2}px;opacity:0;animation:none`;
+    void l.offsetWidth;
+    l.style.animation=`line-sweep ${.4+Math.random()*.3}s ${i*80}ms ease-out forwards`;
+  });
+  const s=document.getElementById('sysid'),o=s.textContent;
+  s.textContent='SYS_ID: '+Array.from({length:8},()=>'0123456789ABCDEF'[Math.random()*16|0]).join('');
+  setTimeout(()=>s.textContent=o,180);
+  setTimeout(ambGlitch,18000+Math.random()*17000);
+}
+setTimeout(ambGlitch,8000+Math.random()*7000);
+
+// ── S2: SIGNAL ────────────────────────────────────────────
+const wfEl  = document.getElementById('wf');
+const srcEl = document.getElementById('src');
+const REVEAL= 'UNKNOWN';
+let tuned=0;
+
+for(let i=0;i<52;i++){
+  const b=document.createElement('div');
+  b.className='wb';
+  b.style.height=(10+Math.random()*70)+'px';
+  b.style.animationDuration=(0.25+Math.random()*1.8).toFixed(2)+'s';
+  b.style.animationDelay=(Math.random()*2).toFixed(2)+'s';
+  wfEl.appendChild(b);
+}
+
+wfEl.addEventListener('mousemove',e=>{
+  const bar=e.target.closest?.('.wb');
+  const bars=[...wfEl.children];
+  bars.forEach(b=>b.classList.remove('lit'));
+  if(bar){const i=bars.indexOf(bar);[-2,-1,0,1,2].forEach(d=>{if(bars[i+d])bars[i+d].classList.add('lit')})}
+});
+wfEl.addEventListener('mouseleave',()=>[...wfEl.children].forEach(b=>b.classList.remove('lit')));
+wfEl.addEventListener('touchstart',e=>{
+  const t=e.touches[0];
+  const bars=[...wfEl.children];
+  const x=t.clientX-wfEl.getBoundingClientRect().left;
+  const idx=Math.floor(x/(wfEl.offsetWidth/bars.length));
+  [-3,-2,-1,0,1,2,3].forEach(d=>{if(bars[idx+d]){bars[idx+d].classList.add('lit');setTimeout(()=>bars[idx+d]?.classList.remove('lit'),500)}});
+  tune();
+},{passive:true});
+wfEl.addEventListener('click',tune);
+function tune(){
+  if(tuned<=REVEAL.length){
+    srcEl.textContent=REVEAL.substring(0,tuned)+'████████████'.substring(0,Math.max(0,12-tuned));
+    tuned++;
+  }
+}
+
+// ── S3: MEMORY ────────────────────────────────────────────
+document.querySelectorAll('.mf').forEach((f,i)=>{
+  const dx=(Math.random()*14-7).toFixed(1),dy=(Math.random()*14-7).toFixed(1);
+  const dur=(7+Math.random()*9).toFixed(1);
+  const st=document.createElement('style');
+  // combine float + idle breathe animations
+  st.textContent=`@keyframes mfd${i}{from{transform:translate(0,0)}to{transform:translate(${dx}px,${dy}px)}}`;
+  document.head.appendChild(st);
+  f.style.animation=`mfd${i} ${dur}s ease-in-out infinite alternate, mf-idle ${(4+Math.random()*3).toFixed(1)}s ease-in-out infinite`;
+  f.addEventListener('touchstart',()=>{
+    f.classList.toggle('on');
+    if(f.classList.contains('on'))setTimeout(()=>f.classList.remove('on'),2000);
+  },{passive:true});
+});
+
+// ── S4: NETWORK ──────────────────────────────────────────
+const NODES=[
+  {xp:50,yp:48,label:'SEVRA',      type:'main'},
+  {xp:22,yp:25,label:'[REDACTED]', type:'dead'},
+  {xp:76,yp:22,label:'[REDACTED]', type:'dead'},
+  {xp:84,yp:58,label:'[REDACTED]', type:'dead'},
+  {xp:67,yp:76,label:'NODE_07',    type:'active'},
+  {xp:30,yp:73,label:'[REDACTED]', type:'dead'},
+  {xp:16,yp:56,label:'[REDACTED]', type:'dead'},
+  {xp:42,yp:16,label:'[REDACTED]', type:'dead'},
+  {xp:61,yp:36,label:'YOU',        type:'you'},
+];
+const EDGES=[[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[0,7],[0,8],[4,2],[5,1],[8,4]];
+const NODE_MSG={0:'>ORIGIN NODE // ACTIVE // BROADCASTING SINCE ████',4:'>RELAY CONFIRMED // SIGNAL ROUTED // TARGET ACQUIRED',8:'>YOU HAVE BEEN A NODE IN THIS NETWORK SINCE YOU ARRIVED'};
+let s4done=false;
+
+function buildNet(){
+  if(s4done)return;s4done=true;
+  const svg=document.getElementById('ns');
+  const R=svg.getBoundingClientRect();
+  const W=R.width,H=R.height;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  const ns='http://www.w3.org/2000/svg';
+  const coords=NODES.map(n=>({x:n.xp*W/100,y:n.yp*H/100,label:n.label,type:n.type}));
+
+  EDGES.forEach(([a,b])=>{
+    const l=document.createElementNS(ns,'line');
+    l.setAttribute('x1',coords[a].x);l.setAttribute('y1',coords[a].y);
+    l.setAttribute('x2',coords[b].x);l.setAttribute('y2',coords[b].y);
+    l.setAttribute('stroke','#002e0b');l.setAttribute('stroke-width','0.8');
+    svg.appendChild(l);
+  });
+
+  coords.forEach((n,i)=>{
+    const g=document.createElementNS(ns,'g');g.style.cursor='pointer';
+    const col=n.type==='main'?'#00ff41':n.type==='you'?'#00c832':n.type==='active'?'#007a1e':'#002e0b';
+    const r=n.type==='main'?6:n.type==='you'?5:4;
+    const c=document.createElementNS(ns,'circle');
+    c.setAttribute('cx',n.x);c.setAttribute('cy',n.y);c.setAttribute('r',r);
+    c.setAttribute('fill',col);c.setAttribute('stroke','#007a1e');c.setAttribute('stroke-width','0.8');
+    const t=document.createElementNS(ns,'text');
+    t.setAttribute('x',n.x);t.setAttribute('y',n.y-(r+5));
+    t.setAttribute('text-anchor','middle');t.setAttribute('font-size','10');
+    t.setAttribute('font-family','VT323,monospace');t.setAttribute('fill',n.type==='dead'?'#002e0b':'#007a1e');
+    t.textContent=n.label;
+    g.addEventListener('mouseenter',()=>{c.setAttribute('fill','#00ff41');t.setAttribute('fill','#00ff41')});
+    g.addEventListener('mouseleave',()=>{c.setAttribute('fill',col);t.setAttribute('fill',n.type==='dead'?'#002e0b':'#007a1e')});
+    g.addEventListener('click',()=>showNodeMsg(NODE_MSG[i]||'>ACCESS DENIED'));
+    g.addEventListener('touchstart',e=>{e.preventDefault();showNodeMsg(NODE_MSG[i]||'>ACCESS DENIED')},{passive:false});
+    g.appendChild(c);g.appendChild(t);svg.appendChild(g);
+  });
+}
+
+function showNodeMsg(msg){
+  const el=document.getElementById('ntip');
+  el.textContent=msg;el.style.animation='none';el.style.color='var(--g)';
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>{el.textContent='[ CLICK THE NODES — SOME WILL RESPOND ]';el.style.color='#004d1a';el.style.animation='blink 2.2s step-end infinite'},3500);
+}
+
+// ── S4.5: INTERCEPT TERMINAL ─────────────────────────────
+const S45LINES=['> CLARIFICATION REQUIRED.','','> YOU DID NOT FIND THIS SIGNAL.','','> THIS SIGNAL FOUND YOU.','','> FOLLOW IT.'];
+let s45done=false;
+function initS45(){
+  if(s45done)return;s45done=true;
+  const scr=document.getElementById('s45t');scr.innerHTML='';
+  let li=0;
+  function next(){
+    if(li>=S45LINES.length){
+      const d=document.createElement('div');d.className='s45l';
+      d.innerHTML='<span class="s45cur">▋</span>';scr.appendChild(d);return;
+    }
+    const d=document.createElement('div');d.className='s45l';
+    d.textContent=S45LINES[li]||' ';scr.appendChild(d);li++;
+    setTimeout(next,S45LINES[li-1]===''?900:1200);
+  }
+  next();
+}
+
+// ── S5: DOSSIER ──────────────────────────────────────────
+document.getElementById('dts').textContent=new Date().toISOString().replace('T',' ').slice(0,19);
+document.querySelectorAll('.dx').forEach(el=>{
+  el.addEventListener('click',()=>crackBlock(el));
+  el.addEventListener('touchstart',e=>{e.preventDefault();crackBlock(el)},{passive:false});
+});
+function crackBlock(el){
+  el.classList.remove('shk');void el.offsetWidth;el.classList.add('shk');
+  trigStatic();
+  const t=parseInt(el.dataset.tries||0)+1;
+  el.dataset.tries=t;
+  if(el.id==='drname'&&t>=3&&!el.classList.contains('cracked')){
+    setTimeout(()=>{el.textContent=el.dataset.partial;el.classList.add('cracked')},300);
+  }
+  if(el.id==='drorg'&&t>=4&&!el.classList.contains('cracked')){
+    setTimeout(()=>{el.textContent='NEW DELHI // INTERNET';el.classList.add('cracked')},300);
+  }
+}
+
+// ── S6: TIMELINE ─────────────────────────────────────────
+document.getElementById('tlnow').textContent=new Date().toISOString().slice(0,10).replace(/-/g,'/');
+document.querySelectorAll('.ti').forEach(ti=>{
+  const full=ti.dataset.full;
+  if(full)ti.querySelector('.tfull').textContent='→ '+full;
+  ti.addEventListener('touchstart',()=>{
+    ti.classList.toggle('on');
+    if(ti.classList.contains('on'))setTimeout(()=>ti.classList.remove('on'),3000);
+  },{passive:true});
+});
+
+// ── S7: TRANSMISSION ─────────────────────────────────────
+const S7LINES=['YOU WERE NOT THE HUNTER.','','THIS SIGNAL WAS BROADCAST FOR YOU.','','EVERY SECTION YOU PASSED THROUGH —','WAS A DOOR HELD OPEN.','','THE SOURCE IS ONE STEP BELOW.','','IT HAS BEEN WAITING.'];
+let s7done=false;
+function initS7(){
+  if(s7done)return;s7done=true;
+  const scr=document.getElementById('s7s');scr.innerHTML='';
+  let li=0;
+  function next(){
+    if(li>=S7LINES.length){
+      const d=document.createElement('div');d.className='s7l';
+      d.innerHTML='<span class="s7cur">▋</span>';scr.appendChild(d);return;
+    }
+    const d=document.createElement('div');d.className='s7l';
+    d.textContent=S7LINES[li]||' ';scr.appendChild(d);li++;
+    setTimeout(next,S7LINES[li-1]===''?600:820);
+  }
+  next();
+}
+
+// ── S8: RECOVERY ─────────────────────────────────────────
+const RLINES=['> LOCATING... DESTINATION','> DECRYPTING... COORDINATES','> PREPARING... HANDOFF','> COMPLETE'];
+let s8done=false;
+function initS8(){
+  if(s8done)return;s8done=true;
+  const log=document.getElementById('rlog');
+  const rb=document.getElementById('rb');
+  const rpct=document.getElementById('rpct');
+  const rfin=document.getElementById('rfin');
+  let li=0,prog=0;
+  function addLine(){
+    if(li>=RLINES.length)return;
+    const d=document.createElement('div');d.className='rl';d.textContent=RLINES[li++];log.appendChild(d);
+    if(li<RLINES.length)setTimeout(addLine,1700);
+  }
+  addLine();
+  const bi=setInterval(()=>{
+    prog=Math.min(100,prog+(.4+Math.random()*1.4));
+    rb.style.width=prog+'%';
+    rpct.textContent=Math.floor(prog)+'%';
+    if(prog>=100){clearInterval(bi);rpct.textContent='100%';setTimeout(()=>rfin.classList.add('on'),700)}
+  },80);
+}
+
+// ── S9: REVEAL ───────────────────────────────────────────
+function doDecrypt(){
+  const btn=document.getElementById('rvbtn');
+  const res=document.getElementById('rvres');
+  if(res.classList.contains('on'))return;
+  trigStatic();
+  btn.style.transition='opacity .4s';
+  btn.style.opacity='0';
+  setTimeout(()=>{btn.style.display='none';res.classList.add('on')},500);
+}
+document.getElementById('rvbtn').addEventListener('click',doDecrypt);
+document.getElementById('rvbtn').addEventListener('touchstart',e=>{e.preventDefault();doDecrypt()},{passive:false});
+
+// ── SECTION HINT ──────────────────────────────────────────
+function showSecHint(sec){
+  const h=sec.querySelector('.sh');
+  if(!h||h._shown)return;
+  h._shown=true;
+  // brief delay so it doesn't fight the scroll animation
+  setTimeout(()=>{
+    h.classList.add('on');
+    setTimeout(()=>h.classList.remove('on'),3000);
+  },600);
+}
+
+// ── INTERSECTION + SCROLL HINT ────────────────────────────
+let hintShown=false;
+
+setTimeout(()=>{
+  hint.classList.add('entrance');
+  hint.addEventListener('animationend',function onEnd(ev){
+    if(ev.animationName!=='hint-entrance')return;
+    hint.removeEventListener('animationend',onEnd);
+    hint.classList.remove('entrance');
+    hintShown=true;
+    if(curSec!==9)hint.classList.add('on');
+  });
+},2500);
+
+const io=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(!e.isIntersecting||e.intersectionRatio<0.5)return;
+    curSec=parseInt(e.target.dataset.i);
+    showSecHint(e.target);
+    // reveal story beat for this section
+    const sb=e.target.querySelector('.sb');
+    if(sb&&!sb.classList.contains('on'))setTimeout(()=>sb.classList.add('on'),500);
+    if(curSec===9){
+      hint.classList.remove('on','entrance');
+    } else if(hintShown){
+      hint.classList.remove('entrance');
+      hint.classList.add('on');
+    }
+    if(curSec===3)buildNet();
+    if(curSec===4)initS45();
+    if(curSec===7)initS7();
+    if(curSec===8)initS8();
+  });
+},{threshold:0.5});
+
+document.querySelectorAll('.s').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>
